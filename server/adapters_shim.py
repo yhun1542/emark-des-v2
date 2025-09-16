@@ -2,14 +2,35 @@ import os, json, re, asyncio
 from typing import Dict, Any, List, Tuple
 
 ENABLE_REAL = (os.getenv("ENABLE_REAL_CALLS", "false").lower() == "true")
+print(f"[DEBUG] ENABLE_REAL_CALLS = {os.getenv('ENABLE_REAL_CALLS', 'NOT_SET')} -> ENABLE_REAL = {ENABLE_REAL}")
 
 try:
     from gemini_adapter import GeminiAdapter
+    print("[DEBUG] GeminiAdapter imported successfully")
+except Exception as e:
+    print(f"[DEBUG] Failed to import GeminiAdapter: {e}")
+    GeminiAdapter = None
+
+try:
     from grok_adapter import GrokAdapter
+    print("[DEBUG] GrokAdapter imported successfully")
+except Exception as e:
+    print(f"[DEBUG] Failed to import GrokAdapter: {e}")
+    GrokAdapter = None
+
+try:
     from openai_adapter import OpenAIAdapter
+    print("[DEBUG] OpenAIAdapter imported successfully")
+except Exception as e:
+    print(f"[DEBUG] Failed to import OpenAIAdapter: {e}")
+    OpenAIAdapter = None
+
+try:
     from claude_adapter import ClaudeAdapter
-except Exception:
-    GeminiAdapter = GrokAdapter = OpenAIAdapter = ClaudeAdapter = None
+    print("[DEBUG] ClaudeAdapter imported successfully")
+except Exception as e:
+    print(f"[DEBUG] Failed to import ClaudeAdapter: {e}")
+    ClaudeAdapter = None
 
 def mock_text(tag: str) -> str:
     return f"[MOCK] {tag}\n- 핵심 요점 A\n- 핵심 요점 B\n- 핵심 요점 C"
@@ -17,11 +38,23 @@ def mock_text(tag: str) -> str:
 class UnifiedAdapter:
     def __init__(self, key:str):
         self.key = key
-        if ENABLE_REAL and key=="gemini" and GeminiAdapter: self.ad = GeminiAdapter("Gemini 팀","혁신적 기술 관점")
-        elif ENABLE_REAL and key=="grok" and GrokAdapter: self.ad = GrokAdapter("Grok 팀","실용적 현실 관점")
-        elif ENABLE_REAL and key=="chatgpt" and OpenAIAdapter: self.ad = OpenAIAdapter("ChatGPT 팀","균형적 종합 관점")
-        elif ENABLE_REAL and key=="claude" and ClaudeAdapter: self.ad = ClaudeAdapter("Claude 팀","윤리적 신중 관점")
-        else: self.ad = None
+        print(f"[DEBUG] Initializing UnifiedAdapter for {key}, ENABLE_REAL={ENABLE_REAL}")
+        
+        if ENABLE_REAL and key=="gemini" and GeminiAdapter: 
+            self.ad = GeminiAdapter("Gemini 팀","혁신적 기술 관점")
+            print(f"[DEBUG] Created real GeminiAdapter")
+        elif ENABLE_REAL and key=="grok" and GrokAdapter: 
+            self.ad = GrokAdapter("Grok 팀","실용적 현실 관점")
+            print(f"[DEBUG] Created real GrokAdapter")
+        elif ENABLE_REAL and key=="chatgpt" and OpenAIAdapter: 
+            self.ad = OpenAIAdapter("ChatGPT 팀","균형적 종합 관점")
+            print(f"[DEBUG] Created real OpenAIAdapter")
+        elif ENABLE_REAL and key=="claude" and ClaudeAdapter: 
+            self.ad = ClaudeAdapter("Claude 팀","윤리적 신중 관점")
+            print(f"[DEBUG] Created real ClaudeAdapter")
+        else: 
+            self.ad = None
+            print(f"[DEBUG] Using mock adapter for {key} (ENABLE_REAL={ENABLE_REAL}, adapter_available={key=='gemini' and GeminiAdapter is not None})")
 
     def gen(self, prompt:str) -> str:
         if self.ad is None: return mock_text(f"{self.key.upper()} 응답")
