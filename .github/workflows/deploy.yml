@@ -1,0 +1,38 @@
+name: Deploy to Railway
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch: {}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      WORKERS: ${{ vars.WORKERS || 1 }}
+      ENABLE_REAL_CALLS: ${{ vars.ENABLE_REAL_CALLS || 'false' }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY || '' }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY || '' }}
+      XAI_API_KEY: ${{ secrets.XAI_API_KEY || '' }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY || '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '18' }
+      - name: Install Railway CLI
+        run: npm i -g @railway/cli
+      - name: Debug tree
+        run: |
+          ls -la
+          test -f Dockerfile && echo "Dockerfile OK"
+          test -d app/src && echo "app/src OK"
+      - name: Railway Up (env-auth)
+        run: railway up --service emark-des
+      - name: Health check (optional)
+        if: ${{ env.APP_URL != '' }}
+        env: { APP_URL: ${{ vars.APP_URL || secrets.APP_URL }} }
+        run: |
+          curl -fsS "$APP_URL/health"
+          curl -N --max-time 5 "$APP_URL/api/stream?question=ping" | head -n 6 || true
+

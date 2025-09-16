@@ -1,33 +1,30 @@
-# Multi-stage build for Emark DES
-FROM node:18-alpine AS frontend
+# 1) Frontend build
+FROM node:18-alpine AS webbuild
 WORKDIR /web
-
-# Install dependencies
+ARG CACHE_BUST=1
+RUN echo "CACHE_BUST=${CACHE_BUST}"
 COPY app/package*.json ./
-RUN npm ci --no-audit --no-fund
-
-# Copy source and build
+RUN npm ci --no-audit --no-fund || npm i --no-audit --no-fund
 COPY app/ ./
+
+# Debug: 빌드 컨텍스트 점검
+RUN echo "--- Web stage tree ---" && ls -la && \
+    echo "--- src ---" && ls -la src || true && \
+    echo "--- src/lib ---" && ls -la src/lib || true && \
+    echo "--- App.tsx head ---" && head -n 20 src/App.tsx || true
+
 RUN npm run build
 
-# Python runtime
+# 2) Python runtime
 FROM python:3.11-slim AS runtime
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 WORKDIR /app
-
-# Install Python dependencies
 COPY server/requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
+COPY server/ ./ 
+# Frontend dist → Flask static
+COPY --from=webbuild /web/dist ./static
 
-# Copy server code
-COPY server/ ./
-
-# Copy built frontend
-COPY --from=frontend /web/dist ./static
-
-# Environment
-ENV PORT=8000
-ENV PYTHONUNBUFFERED=1
-
-# Run server
-CMD ["sh", "-c", "gunicorn -k gevent -w ${WORKERS:-1} --access-logfile - --error-logfile - -t 0 -b 0.0.0.0:${PORT} app:app"]
+# Gunicorn: PORT 환경변수 치환(쉘 실행)
+CMD ["sh","-c","gunicorn -k gevent -w ${WORKERS:-1} --access-logfile - --error-logfile - -t 0 -b 0.0.0.0:${PORT} app:app"]
 
