@@ -1,0 +1,21 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --surface-low: #0b1220;
+  --surface-mid: #101827;
+  --surface-high: #162036;
+  --surface-border: #23314d;
+  --text-base: #e5eefc;
+  --text-muted: #9db1d4;
+  --text-strong: #ffffff;
+  --text-inv: #0b1220;
+}
+body { background: var(--surface-mid); color: var(--text-base); }
+.card { background: var(--surface-low); border:1px solid var(--surface-border); border-radius: 14px; box-shadow: var(--tw-shadow, 0 0 #0000), 0 10px 30px rgba(0,0,0,.2); }
+.badge { font-size: 12px; padding:2px 8px; border:1px solid var(--surface-border); border-radius: 8px; background: var(--surface-high); color: var(--text-muted) }
+.btn { display:inline-flex; align-items:center; gap:6px; padding:10px 14px; border-radius:10px; border:1px solid var(--surface-border) }
+.btn-primary { background: linear-gradient(180deg,#42a9ff,#148dff); color: var(--text-inv); border:none }
+.skeleton { background: linear-gradient(90deg, rgba(255,255,255,.04), rgba(255,255,255,.1), rgba(255,255,255,.04)); background-size:200% 100%; animation: sk 1.2s infinite; }
+@keyframes sk { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
