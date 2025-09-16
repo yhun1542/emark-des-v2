@@ -43,13 +43,19 @@ def health(): return {"ok": True}
 
 @app.get("/debug/env")
 def debug_env():
-    return {
-        "ENABLE_REAL_CALLS": os.getenv("ENABLE_REAL_CALLS", "NOT_SET"),
-        "OPENAI_API_KEY": "SET" if os.getenv("OPENAI_API_KEY") else "NOT_SET",
-        "GEMINI_API_KEY": "SET" if os.getenv("GEMINI_API_KEY") else "NOT_SET",
-        "XAI_API_KEY": "SET" if os.getenv("XAI_API_KEY") else "NOT_SET",
-        "ANTHROPIC_API_KEY": "SET" if os.getenv("ANTHROPIC_API_KEY") else "NOT_SET"
-    }
+    keys = ["ENABLE_REAL_CALLS","OPENAI_API_KEY","GEMINI_API_KEY","XAI_API_KEY","ANTHROPIC_API_KEY","PORT","WORKERS"]
+    result = {}
+    for k in keys:
+        value = os.getenv(k, "<not set>")
+        # API 키는 보안을 위해 앞뒤 몇 글자만 표시
+        if "API_KEY" in k and value != "<not set>":
+            if len(value) > 8:
+                result[k] = f"{value[:4]}...{value[-4:]}"
+            else:
+                result[k] = "***"
+        else:
+            result[k] = value
+    return result
 
 # Serve SPA
 @app.get("/")
