@@ -1,95 +1,138 @@
-import os, json, re, asyncio
-from typing import Dict, Any, List, Tuple
+#!/usr/bin/env python3
+"""
+EmarkOS Adapter Shim - Final Safe Implementation
+- 안전한 JSON 파싱 및 fallback 지원
+- JSONDecodeError로 서버가 죽지 않음
+"""
+
+import os
+import json
+import re
+import asyncio
 import logging
+from typing import Dict, Any, List, Tuple
 
 # 로깅 설정
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
 
 ENABLE_REAL = (os.getenv("ENABLE_REAL_CALLS", "false").lower() == "true")
-log.info(f"[DEBUG] ENABLE_REAL_CALLS = {os.getenv('ENABLE_REAL_CALLS', 'NOT_SET')} -> ENABLE_REAL = {ENABLE_REAL}")
+log.info(f"[SHIM] ENABLE_REAL_CALLS = {os.getenv('ENABLE_REAL_CALLS', 'NOT_SET')} -> {ENABLE_REAL}")
 
+# 어댑터 import 시도
 try:
     from gemini_adapter import GeminiAdapter
-    log.info("[DEBUG] GeminiAdapter imported successfully")
+    log.info("[SHIM] GeminiAdapter imported successfully")
 except Exception as e:
-    log.warning(f"[DEBUG] Failed to import GeminiAdapter: {e}")
+    log.warning(f"[SHIM] Failed to import GeminiAdapter: {e}")
     GeminiAdapter = None
 
 try:
     from grok_adapter import GrokAdapter
-    log.info("[DEBUG] GrokAdapter imported successfully")
+    log.info("[SHIM] GrokAdapter imported successfully")
 except Exception as e:
-    log.warning(f"[DEBUG] Failed to import GrokAdapter: {e}")
+    log.warning(f"[SHIM] Failed to import GrokAdapter: {e}")
     GrokAdapter = None
 
 try:
     from openai_adapter import OpenAIAdapter
-    log.info("[DEBUG] OpenAIAdapter imported successfully")
+    log.info("[SHIM] OpenAIAdapter imported successfully")
 except Exception as e:
-    log.warning(f"[DEBUG] Failed to import OpenAIAdapter: {e}")
+    log.warning(f"[SHIM] Failed to import OpenAIAdapter: {e}")
     OpenAIAdapter = None
 
 try:
     from claude_adapter import ClaudeAdapter
-    log.info("[DEBUG] ClaudeAdapter imported successfully")
+    log.info("[SHIM] ClaudeAdapter imported successfully")
 except Exception as e:
-    log.warning(f"[DEBUG] Failed to import ClaudeAdapter: {e}")
+    log.warning(f"[SHIM] Failed to import ClaudeAdapter: {e}")
     ClaudeAdapter = None
 
-def safe_json_loads(text: str, fallback: dict) -> dict:
-    """안전한 JSON 파싱 유틸리티"""
-    try:
-        return json.loads(text)
-    except (json.JSONDecodeError, TypeError) as e:
-        log.warning(f"JSON parsing failed: {e}, text preview: {text[:200]}")
-        return fallback
-
-def get_fallback_evaluation() -> Dict[str, Any]:
-    """기본 fallback 평가 구조"""
-    return {
+def safe_json_parse(text: str) -> Dict[str, Any]:
+    """
+    안전한 JSON 파싱 - 핵심 함수
+    """
+    # fallback 기본 구조
+    fallback = {
         "scores": [
-            {"criterion": "feasibility", "score": 80, "reason": "fallback - 실행 가능성 평가"},
-            {"criterion": "creativity", "score": 75, "reason": "fallback - 창의성 평가"},
-            {"criterion": "logic", "score": 85, "reason": "fallback - 논리성 평가"},
-            {"criterion": "risk", "score": 70, "reason": "fallback - 위험도 평가"},
-            {"criterion": "economics", "score": 78, "reason": "fallback - 경제성 평가"}
+            {"criterion": "feasibility", "score": 80, "reason": "fallback - 실행 가능성"},
+            {"criterion": "creativity", "score": 75, "reason": "fallback - 창의성"},
+            {"criterion": "logic", "score": 85, "reason": "fallback - 논리성"},
+            {"criterion": "risk", "score": 70, "reason": "fallback - 위험도"},
+            {"criterion": "economics", "score": 78, "reason": "fallback - 경제성"}
         ],
-        "notes": "fallback evaluation due to API error or parsing failure"
+        "notes": "safe fallback due to JSON parsing failure"
     }
 
+    # 1. 응답 비었을 경우
+    if not text or not text.strip():
+        log.warning("[SHIM] empty response, using fallback")
+        return fallback
+
+    stripped = text.strip()
+
+    # 2. JSON 응답으로 보이는 경우만 파싱
+    if stripped.startswith("{") and stripped.endswith("}"):
+        try:
+            result = json.loads(stripped)
+            log.info("[SHIM] JSON parsing successful")
+            return result
+        except json.JSONDecodeError as e:
+            log.warning(f"[SHIM] JSON parsing failed: {e}, text: {stripped[:200]}")
+            return fallback
+
+    # 3. 정규식으로 JSON 부분 추출 시도 (기존 로직 유지)
+    json_match = re.search(r'\{[\s\S]*\}$', stripped)
+    if json_match:
+        try:
+            result = json.loads(json_match.group(0))
+            log.info("[SHIM] JSON extraction and parsing successful")
+            return result
+        except json.JSONDecodeError as e:
+            log.warning(f"[SHIM] Extracted JSON parsing failed: {e}")
+            return fallback
+
+    # 4. JSON이 아닐 경우 fallback
+    log.warning(f"[SHIM] non-JSON response, using fallback. text: {stripped[:200]}")
+    return fallback
+
 def mock_text(tag: str) -> str:
+    """Mock 텍스트 생성"""
     return f"[MOCK] {tag}\n- 핵심 요점 A\n- 핵심 요점 B\n- 핵심 요점 C"
 
 class UnifiedAdapter:
+    """통합 어댑터 - 안전한 구현"""
+    
     def __init__(self, key: str):
         self.key = key
-        log.info(f"[DEBUG] Initializing UnifiedAdapter for {key}, ENABLE_REAL={ENABLE_REAL}")
+        log.info(f"[SHIM] Initializing UnifiedAdapter for {key}")
         
-        if ENABLE_REAL and key == "gemini" and GeminiAdapter: 
+        # 실제 어댑터 초기화
+        if ENABLE_REAL and key == "gemini" and GeminiAdapter:
             self.ad = GeminiAdapter("Gemini 팀", "혁신적 기술 관점")
-            log.info(f"[DEBUG] Created real GeminiAdapter")
-        elif ENABLE_REAL and key == "grok" and GrokAdapter: 
+            log.info(f"[SHIM] Created real GeminiAdapter")
+        elif ENABLE_REAL and key == "grok" and GrokAdapter:
             self.ad = GrokAdapter("Grok 팀", "실용적 현실 관점")
-            log.info(f"[DEBUG] Created real GrokAdapter")
-        elif ENABLE_REAL and key == "chatgpt" and OpenAIAdapter: 
+            log.info(f"[SHIM] Created real GrokAdapter")
+        elif ENABLE_REAL and key == "chatgpt" and OpenAIAdapter:
             self.ad = OpenAIAdapter("ChatGPT 팀", "균형적 종합 관점")
-            log.info(f"[DEBUG] Created real OpenAIAdapter")
-        elif ENABLE_REAL and key == "claude" and ClaudeAdapter: 
+            log.info(f"[SHIM] Created real OpenAIAdapter")
+        elif ENABLE_REAL and key == "claude" and ClaudeAdapter:
             self.ad = ClaudeAdapter("Claude 팀", "윤리적 신중 관점")
-            log.info(f"[DEBUG] Created real ClaudeAdapter")
-        else: 
+            log.info(f"[SHIM] Created real ClaudeAdapter")
+        else:
             self.ad = None
-            log.info(f"[DEBUG] Using mock adapter for {key} (ENABLE_REAL={ENABLE_REAL})")
+            log.info(f"[SHIM] Using mock adapter for {key}")
 
     def gen(self, prompt: str) -> str:
-        if self.ad is None: 
+        """텍스트 생성 - 안전한 구현"""
+        if self.ad is None:
             return mock_text(f"{self.key.upper()} 응답")
         
-        async def _run(): 
+        async def _run():
             return await self.ad.generate_response(prompt)
         
-        try: 
+        try:
             return asyncio.run(_run())
         except RuntimeError:
             loop = asyncio.new_event_loop()
@@ -99,25 +142,21 @@ class UnifiedAdapter:
             finally:
                 loop.close()
         except Exception as e:
-            log.error(f"Error in gen() for {self.key}: {e}")
+            log.error(f"[SHIM] Error in gen() for {self.key}: {e}")
             return f"[ERROR] {self.key} API 호출 실패: {str(e)}"
 
     def team_discussion(self, question: str) -> Dict[str, Any]:
+        """팀 토론 - 안전한 구현"""
         if self.ad is None:
-            leader = mock_text("Leader")
-            blue = mock_text("Blue")
-            research = mock_text("Research/Alternative")
-            red = mock_text("Red")
-            summary = mock_text("요약")
             return {
-                "leader": leader,
-                "blue": blue,
-                "research": research,
-                "red": red,
-                "summary": summary
+                "leader": mock_text("Leader"),
+                "blue": mock_text("Blue"),
+                "research": mock_text("Research/Alternative"),
+                "red": mock_text("Red"),
+                "summary": mock_text("요약")
             }
         
-        async def _run(): 
+        async def _run():
             return await self.ad.conduct_team_discussion(question)
         
         try:
@@ -130,14 +169,14 @@ class UnifiedAdapter:
             finally:
                 loop.close()
         except Exception as e:
-            log.error(f"Error in team_discussion() for {self.key}: {e}")
-            # 오류 발생 시 fallback 구조 반환
+            log.error(f"[SHIM] Error in team_discussion() for {self.key}: {e}")
+            error_msg = f"[ERROR] {self.key} API 호출 실패: {str(e)}"
             return {
-                "leader": f"[ERROR] {self.key} API 호출 실패: {str(e)}",
-                "blue": f"[ERROR] {self.key} API 호출 실패: {str(e)}",
-                "research": f"[ERROR] {self.key} API 호출 실패: {str(e)}",
-                "red": f"[ERROR] {self.key} API 호출 실패: {str(e)}",
-                "summary": f"[ERROR] {self.key} API 호출 실패: {str(e)}"
+                "leader": error_msg,
+                "blue": error_msg,
+                "research": error_msg,
+                "red": error_msg,
+                "summary": error_msg
             }
         
         dp = out.get("discussion_process", out)
@@ -150,9 +189,11 @@ class UnifiedAdapter:
         }
 
     def evaluate_targets(self, question: str, team_summaries: Dict[str, str]) -> Dict[str, Any]:
-        """구조적으로 개선된 평가 메서드"""
-        # 1차 방어선: 기본 fallback 구조 설정
-        fallback_data = get_fallback_evaluation()
+        """
+        타겟 평가 - 완전히 안전한 구현
+        *** 핵심: JSONDecodeError로 서버가 절대 죽지 않음 ***
+        """
+        log.info(f"[SHIM] evaluate_targets called for {self.key}")
         
         # 평가 프롬프트 생성
         prompt = [
@@ -164,58 +205,22 @@ class UnifiedAdapter:
         # API 호출
         try:
             text = self.gen("\n".join(prompt))
+            log.info(f"[SHIM] API response received for {self.key}: {text[:100]}...")
         except Exception as e:
-            log.error(f"API call failed in evaluate_targets for {self.key}: {e}")
-            return fallback_data
+            log.error(f"[SHIM] API call failed for {self.key}: {e}")
+            return safe_json_parse("")  # 빈 문자열로 fallback 트리거
         
-        # 응답 검증 및 파싱
-        if not text or not text.strip():
-            log.warning(f"Empty response from {self.key} in evaluate_targets")
-            return fallback_data
-        
-        # 오류 메시지 체크
-        if text.startswith("[ERROR]"):
-            log.warning(f"Error response from {self.key}: {text[:200]}")
-            return fallback_data
-        
-        # JSON 구조 기본 검증
-        text_stripped = text.strip()
-        if not (text_stripped.startswith("{") and text_stripped.endswith("}")):
-            log.warning(f"Non-JSON response from {self.key}: {text[:200]}")
-            
-            # 정규식으로 JSON 부분 추출 시도 (기존 로직 유지)
-            m = re.search(r"\{[\s\S]*\}$", text_stripped)
-            if m:
-                text_stripped = m.group(0)
-                log.info(f"Extracted JSON from response: {text_stripped[:100]}")
-            else:
-                log.warning(f"No JSON found in response from {self.key}")
-                return fallback_data
-        
-        # 안전한 JSON 파싱
-        data = safe_json_loads(text_stripped, fallback_data)
-        
-        # 파싱된 데이터 구조 검증
-        if not isinstance(data, dict):
-            log.warning(f"Invalid data structure from {self.key}: {type(data)}")
-            return fallback_data
-        
-        # 필수 필드 검증
-        if "scores" not in data or not isinstance(data["scores"], list):
-            log.warning(f"Missing or invalid 'scores' field from {self.key}")
-            data["scores"] = fallback_data["scores"]
-        
-        if "notes" not in data:
-            data["notes"] = fallback_data["notes"]
-        
-        log.info(f"Successfully parsed evaluation from {self.key}")
-        return data
+        # *** 핵심: 안전한 JSON 파싱 ***
+        result = safe_json_parse(text)
+        log.info(f"[SHIM] evaluate_targets completed for {self.key}")
+        return result
 
 def get_providers():
+    """프로바이더 목록 반환"""
     return [
-        UnifiedAdapter("gemini"), 
+        UnifiedAdapter("gemini"),
         UnifiedAdapter("grok"), 
-        UnifiedAdapter("chatgpt"), 
+        UnifiedAdapter("chatgpt"),
         UnifiedAdapter("claude")
     ]
 
