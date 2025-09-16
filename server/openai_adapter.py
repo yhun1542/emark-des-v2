@@ -7,11 +7,17 @@ class OpenAIAdapter:
     def __init__(self, team_name: str, perspective: str):
         self.team_name = team_name
         self.perspective = perspective
+        
+        # URL 안전성 확보
+        base_url = os.getenv("OPENAI_API_BASE", "https://api.openai.com/v1")
+        if not base_url.startswith("http"):
+            base_url = "https://" + base_url.lstrip("/")
+        
         self.client = openai.AsyncOpenAI(
             api_key=os.getenv("OPENAI_API_KEY"),
-            base_url=os.getenv("OPENAI_API_BASE", "https://api.openai.com/v1")
+            base_url=base_url
         )
-        self.model = "gpt-4"
+        self.model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 
     async def generate_response(self, prompt: str) -> str:
         try:

@@ -1,33 +1,37 @@
 import os
 import asyncio
+import httpx
 from typing import Dict, Any
-from xai_sdk import Client
 
 class GrokAdapter:
     def __init__(self, team_name: str, perspective: str):
         self.team_name = team_name
         self.perspective = perspective
-        self.client = Client(api_key=os.getenv("XAI_API_KEY"))
+        self.api_key = os.getenv("XAI_API_KEY", "")
+        self.base = os.getenv("XAI_BASE_URL", "https://api.x.ai/v1").rstrip("/")
+        self.model = os.getenv("XAI_MODEL", "grok-2")
+
+    def _normalize_messages(self, prompt: str):
+        # system 롤 금지: 시스템 지침을 user에 합침
+        merged = f"SYSTEM: 당신은 {self.team_name}입니다. {self.perspective}에서 답변하세요.\n\nUSER: {prompt}"
+        return [{"role": "user", "content": merged}]
 
     async def generate_response(self, prompt: str) -> str:
         try:
-            system_instruction = f"당신은 {self.team_name}입니다. {self.perspective}에서 답변해주세요."
-            combined_prompt = f"{system_instruction}\n\n{prompt}"
+            url = f"{self.base}/chat/completions"
+            payload = {
+                "model": self.model,
+                "messages": self._normalize_messages(prompt),
+                "temperature": 0.3,
+                "max_tokens": 1200
+            }
+            headers = {"Authorization": f"Bearer {self.api_key}"}
             
-            # xAI SDK는 동기 API이므로 executor에서 실행
-            loop = asyncio.get_event_loop()
-            response = await loop.run_in_executor(
-                None,
-                lambda: self.client.chat.create(
-                    model="grok-beta",
-                    messages=[
-                        {"role": "user", "content": combined_prompt}
-                    ],
-                    max_tokens=1000,
-                    temperature=0.7
-                )
-            )
-            return response.choices[0].message.content
+            async with httpx.AsyncClient(timeout=60) as client:
+                r = await client.post(url, json=payload, headers=headers)
+                r.raise_for_status()
+                data = r.json()
+                return data.get("choices", [{}])[0].get("message", {}).get("content", "") or ""
         except Exception as e:
             return f"[ERROR] Grok API 호출 실패: {str(e)}"
 

@@ -8,7 +8,7 @@ class GeminiAdapter:
         self.team_name = team_name
         self.perspective = perspective
         genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-        self.model = genai.GenerativeModel('gemini-1.5-flash')
+        self.model = genai.GenerativeModel('gemini-1.5-pro')
 
     async def generate_response(self, prompt: str) -> str:
         try:
