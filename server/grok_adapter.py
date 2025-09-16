@@ -11,7 +11,8 @@ class GrokAdapter:
 
     async def generate_response(self, prompt: str) -> str:
         try:
-            system_prompt = f"당신은 {self.team_name}입니다. {self.perspective}에서 답변해주세요."
+            system_instruction = f"당신은 {self.team_name}입니다. {self.perspective}에서 답변해주세요."
+            combined_prompt = f"{system_instruction}\n\n{prompt}"
             
             # xAI SDK는 동기 API이므로 executor에서 실행
             loop = asyncio.get_event_loop()
@@ -20,8 +21,7 @@ class GrokAdapter:
                 lambda: self.client.chat.create(
                     model="grok-beta",
                     messages=[
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": prompt}
+                        {"role": "user", "content": combined_prompt}
                     ],
                     max_tokens=1000,
                     temperature=0.7
