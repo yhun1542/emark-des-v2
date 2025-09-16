@@ -1,8 +1,8 @@
 # 1) Frontend build
 FROM node:18-alpine AS webbuild
 WORKDIR /web
-ARG CACHE_BUST=20250916-1245-STRUCTURAL-FIX
-RUN echo "CACHE_BUST=${CACHE_BUST}" && echo "STRUCTURAL_JSON_PARSING_FIX=${CACHE_BUST}"
+ARG CACHE_BUST=20250916-1305-CRITICAL-FIX
+RUN echo "CACHE_BUST=${CACHE_BUST}" && echo "CRITICAL_JSON_CRASH_FIX=${CACHE_BUST}"
 COPY app/package*.json ./
 RUN npm ci --no-audit --no-fund || npm i --no-audit --no-fund
 COPY app/ ./
@@ -18,8 +18,8 @@ RUN npm run build
 # 2) Python runtime
 FROM python:3.11-slim AS runtime
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
-ARG CACHE_BUST=20250916-1245-STRUCTURAL-FIX
-RUN echo "PYTHON_CACHE_BUST=${CACHE_BUST}" && echo "STRUCTURAL_JSON_PARSING_FIX=${CACHE_BUST}"
+ARG CACHE_BUST=20250916-1305-CRITICAL-FIX
+RUN echo "PYTHON_CACHE_BUST=${CACHE_BUST}" && echo "CRITICAL_JSON_CRASH_FIX=${CACHE_BUST}"
 WORKDIR /app
 COPY server/requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
